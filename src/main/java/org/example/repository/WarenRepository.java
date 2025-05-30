@@ -9,7 +9,7 @@ import java.util.List;
 // für Datenbankoperationen
 public class WarenRepository {
 
-    private final String url = "jdbc:mysql://localhost:3306/logistik_db";
+    private final String url = "jdbc:mysql://localhost:3306/logistik_crm";
     private final String user = "root";      // MySQL-Benutzer
     private final String password = "meinDatenbank";
 

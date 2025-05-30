@@ -8,7 +8,7 @@ import java.util.List;
 
 public class LieferantRepository {
 
-    private final String url = "jdbc:mysql://localhost:3306/logistik_db";
+    private final String url = "jdbc:mysql://localhost:3306/logistik_crm";
     private final String user = "root";
     private final String password = "meinDatenbank";
 

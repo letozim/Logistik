@@ -7,6 +7,7 @@ import javafx.scene.layout.GridPane;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import org.example.model.Kunde;
+import org.example.model.PersonTyp;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,36 +25,69 @@ public class KundeDialog {
         grid.setVgap(8);
         grid.setHgap(10);
 
+        // Felder
         TextField tfName = new TextField();
         TextField tfAdresse = new TextField();
         TextField tfTelefon = new TextField();
         TextField tfEmail = new TextField();
+        ComboBox<PersonTyp> cbTyp = new ComboBox<>();
+        TextField tfBetreuenderMitarbeiter = new TextField();
+        TextField tfKundennummer = new TextField();
+        Spinner<Integer> spZahlungsziel = new Spinner<>(0, 365, 30);
 
+        // ComboBox-Optionen setzen
+        cbTyp.getItems().addAll(PersonTyp.values());
+        cbTyp.setValue(PersonTyp.PRIVATPERSON);
+
+        // Spinner konfigurieren
+        spZahlungsziel.setEditable(true);
+
+        // Felder vorausfüllen falls Kunde bearbeitet wird
         if (kunde != null) {
             tfName.setText(kunde.getName());
             tfAdresse.setText(kunde.getAdresse());
             tfTelefon.setText(kunde.getTelefon());
             tfEmail.setText(kunde.getEmail());
+            cbTyp.setValue(kunde.getTyp());
+            tfBetreuenderMitarbeiter.setText(kunde.getBetreuenderMitarbeiter());
+            tfKundennummer.setText(kunde.getKundennummer());
+            spZahlungsziel.getValueFactory().setValue(kunde.getZahlungsziel());
         }
 
-        grid.add(new Label("Name:"), 0, 0);
-        grid.add(tfName, 1, 0);
-        grid.add(new Label("Adresse:"), 0, 1);
-        grid.add(tfAdresse, 1, 1);
-        grid.add(new Label("Telefon:"), 0, 2);
-        grid.add(tfTelefon, 1, 2);
-        grid.add(new Label("Email:"), 0, 3);
-        grid.add(tfEmail, 1, 3);
+        // Layout
+        int row = 0;
+        grid.add(new Label("Name:"), 0, row);
+        grid.add(tfName, 1, row++);
+
+        grid.add(new Label("Typ:"), 0, row);
+        grid.add(cbTyp, 1, row++);
+
+        grid.add(new Label("Adresse:"), 0, row);
+        grid.add(tfAdresse, 1, row++);
+
+        grid.add(new Label("Telefon:"), 0, row);
+        grid.add(tfTelefon, 1, row++);
+
+        grid.add(new Label("Email:"), 0, row);
+        grid.add(tfEmail, 1, row++);
+
+        grid.add(new Label("Kundennummer:"), 0, row);
+        grid.add(tfKundennummer, 1, row++);
+
+        grid.add(new Label("Betreuender Mitarbeiter:"), 0, row);
+        grid.add(tfBetreuenderMitarbeiter, 1, row++);
+
+        grid.add(new Label("Zahlungsziel (Tage):"), 0, row);
+        grid.add(spZahlungsziel, 1, row++);
 
         Button btnOk = new Button("OK");
         Button btnAbbrechen = new Button("Abbrechen");
-        grid.add(btnOk, 0, 4);
-        grid.add(btnAbbrechen, 1, 4);
+        grid.add(btnOk, 0, row);
+        grid.add(btnAbbrechen, 1, row);
 
-        Scene scene = new Scene(grid);
+        Scene scene = new Scene(grid, 400, 350);
         dialog.setScene(scene);
 
-        // 💡 Funktionierender Rückgabewert
         AtomicReference<Kunde> resultKunde = new AtomicReference<>(null);
 
         btnOk.setOnAction(e -> {
@@ -61,9 +95,19 @@ public class KundeDialog {
             String adresse = tfAdresse.getText().trim();
             String telefon = tfTelefon.getText().trim();
             String email = tfEmail.getText().trim();
+            PersonTyp typ = cbTyp.getValue();
+            String betreuenderMitarbeiter = tfBetreuenderMitarbeiter.getText().trim();
+            String kundennummer = tfKundennummer.getText().trim();
+            int zahlungsziel = spZahlungsziel.getValue();
 
+            // Validierung
             if (name.isEmpty()) {
                 showAlert("Name darf nicht leer sein.");
+                return;
+            }
+
+            if (typ == null) {
+                showAlert("Typ muss ausgewählt werden.");
                 return;
             }
 
@@ -73,16 +117,17 @@ public class KundeDialog {
             neuerKunde.setAdresse(adresse);
             neuerKunde.setTelefon(telefon);
             neuerKunde.setEmail(email);
+            neuerKunde.setTyp(typ);
+            neuerKunde.setBetreuenderMitarbeiter(betreuenderMitarbeiter);
+            neuerKunde.setKundennummer(kundennummer);
+            neuerKunde.setZahlungsziel(zahlungsziel);
 
-            // Das Ergebnis speichern
             resultKunde.set(neuerKunde);
-
-            // Dialog schließen
             dialog.close();
         });
 
         btnAbbrechen.setOnAction(e -> {
-            dialog.close(); // Kein Setzen nötig – bleibt null
+            dialog.close();
         });
 
         dialog.showAndWait();
@@ -98,3 +143,4 @@ public class KundeDialog {
         alert.showAndWait();
     }
 }
+

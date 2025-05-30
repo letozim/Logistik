@@ -19,6 +19,13 @@ import org.example.repository.KundeRepository;
 import org.example.repository.LieferantRepository;
 import org.example.repository.FahrerRepository;
 
+import org.example.model.PersonRolle;
+import org.example.model.PersonTyp;
+import org.example.model.FahrerDetails;
+import org.example.model.FahrerVerfuegbarkeit;
+
+
+import java.util.List;
 import java.util.Optional;
 
 public class StammdatenverwaltungView extends Application {
@@ -50,6 +57,7 @@ public class StammdatenverwaltungView extends Application {
         Scene scene = new Scene(tabPane, 900, 600);
         primaryStage.setScene(scene);
         primaryStage.show();
+
     }
 
     private BorderPane createKundenPane() {
@@ -263,12 +271,60 @@ public class StammdatenverwaltungView extends Application {
         root.setCenter(tableView);
         root.setBottom(buttons);
 
+
         btnHinzufuegen.setOnAction(e -> {
-            Optional<Fahrer> result = FahrerDialog.zeigeDialog(null, null);
-            result.ifPresent(f -> {
-                fahrerRepo.save(f);
-                fahrerListe.setAll(fahrerRepo.findAll());
-            });
+            System.out.println("=== DEBUG: Fahrer-Dialog wird geöffnet ===");
+
+            try {
+                Optional<Fahrer> result = FahrerDialog.zeigeDialog(null, null);
+
+                System.out.println("Dialog-Result vorhanden: " + result.isPresent());
+
+                if (result.isPresent()) {
+                    Fahrer f = result.get();
+                    System.out.println("Fahrer empfangen:");
+                    System.out.println("  - Name: " + f.getName());
+                    System.out.println("  - Telefon: " + f.getTelefon());
+                    System.out.println("  - Führerscheinklasse: " + f.getFuehrerscheinklasse());
+                    System.out.println("  - Fahrzeugtyp: " + f.getFahrzeugtyp());
+                    System.out.println("  - Verfügbarkeit: " + f.getVerfuegbarkeit());
+                    System.out.println("  - Typ: " + f.getTyp());
+
+                    System.out.println("=== Versuche Speichern ===");
+
+                    try {
+                        fahrerRepo.save(f);
+                        System.out.println("✅ ERFOLGREICH gespeichert!");
+                        System.out.println("Neue ID: " + f.getId());
+
+                        // Liste neu laden
+                        List<Fahrer> alleFahrer = fahrerRepo.findAll();
+                        System.out.println("Anzahl Fahrer in DB: " + alleFahrer.size());
+                        fahrerListe.setAll(alleFahrer);
+
+                    } catch (Exception saveEx) {
+                        System.err.println("❌ FEHLER beim Speichern:");
+                        System.err.println("Typ: " + saveEx.getClass().getSimpleName());
+                        System.err.println("Message: " + saveEx.getMessage());
+                        saveEx.printStackTrace();
+
+                        // User informieren
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Speicherfehler");
+                        alert.setHeaderText("Fahrer konnte nicht gespeichert werden");
+                        alert.setContentText("Fehler: " + saveEx.getMessage());
+                        alert.showAndWait();
+                    }
+                } else {
+                    System.out.println("❌ Dialog wurde abgebrochen oder gab kein Result zurück");
+                }
+
+            } catch (Exception dialogEx) {
+                System.err.println("❌ FEHLER beim Dialog:");
+                dialogEx.printStackTrace();
+            }
+
+            System.out.println("=== DEBUG Ende ===\n");
         });
 
         btnBearbeiten.setOnAction(e -> {

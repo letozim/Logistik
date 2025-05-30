@@ -1,6 +1,7 @@
 package org.example.ui;
 
 import javafx.application.Application;
+import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -8,27 +9,30 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+
 import org.example.model.Ware;
 import org.example.service.WarenService;
 
+import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 public class WareVerwaltungView extends Application {
 
     private final WarenService warenService = new WarenService();
-    private final ObservableList<Ware> warenDaten = FXCollections.observableArrayList();
-    private FilteredList<Ware> gefilterteDaten;
     private final TableView<Ware> tableView = new TableView<>();
 
+    private final ObservableList<Ware> masterDaten = FXCollections.observableArrayList();
+    private final FilteredList<Ware> gefilterteWaren = new FilteredList<>(masterDaten, p -> true);
+
+    private final TextField suchfeld = new TextField();
     private final Button btnHinzufuegen = new Button("Hinzufügen");
     private final Button btnBearbeiten = new Button("Bearbeiten");
     private final Button btnLoeschen = new Button("Löschen");
-
-    private final TextField suchFeld = new TextField();
+    private final Button btnImport = new Button("Importieren");
 
     @Override
     public void start(Stage primaryStage) {
@@ -36,26 +40,27 @@ public class WareVerwaltungView extends Application {
 
         BorderPane root = new BorderPane();
 
-        // Suchfeld
-        suchFeld.setPromptText("Suche nach Name oder Artikelnummer...");
-        suchFeld.textProperty().addListener((obs, alt, neu) -> {
-            gefilterteDaten.setPredicate(ware -> {
-                if (neu == null || neu.isEmpty()) return true;
-                String suchtext = neu.toLowerCase();
-                return ware.getArtikelnummer().toLowerCase().contains(suchtext) ||
-                        ware.getName().toLowerCase().contains(suchtext);
-            });
-        });
+        VBox topBox = new VBox();
+        topBox.setPadding(new Insets(10));
+        topBox.setSpacing(10);
 
-        // Tabelle konfigurieren
+        Label suchLabel = new Label("Suchen:");
+        suchfeld.setPromptText("Suche nach Name, Artikelnummer, Beschreibung...");
+        suchfeld.textProperty().addListener((obs, alt, neu) -> filtereTabelle(neu));
+        topBox.getChildren().addAll(suchLabel, suchfeld);
+
+        root.setTop(topBox);
+
         konfiguriereTabelle();
-
-        // Daten initial laden
-        gefilterteDaten = new FilteredList<>(warenDaten, p -> true);
-        tableView.setItems(gefilterteDaten);
+        tableView.setItems(gefilterteWaren);
         ladeAlleWaren();
 
-        // Buttons konfigurieren
+        HBox buttonLeiste = new HBox(10, btnHinzufuegen, btnBearbeiten, btnLoeschen, btnImport);
+        buttonLeiste.setPadding(new Insets(10));
+        buttonLeiste.setAlignment(Pos.CENTER);
+        root.setBottom(buttonLeiste);
+        root.setCenter(tableView);
+
         btnHinzufuegen.setOnAction(e -> {
             WareDialog dialog = new WareDialog();
             dialog.zeigeDialog(primaryStage, null).ifPresent(wareNeu -> {
@@ -87,16 +92,7 @@ public class WareVerwaltungView extends Application {
             }
         });
 
-        HBox buttonLeiste = new HBox(10, btnHinzufuegen, btnBearbeiten, btnLoeschen);
-        buttonLeiste.setAlignment(Pos.CENTER);
-        buttonLeiste.setPadding(new Insets(10));
-
-        VBox topBox = new VBox(10, suchFeld);
-        topBox.setPadding(new Insets(10));
-
-        root.setTop(topBox);
-        root.setCenter(tableView);
-        root.setBottom(buttonLeiste);
+        btnImport.setOnAction(e -> csvImportieren(primaryStage));
 
         Scene scene = new Scene(root, 800, 500);
         primaryStage.setScene(scene);
@@ -105,35 +101,90 @@ public class WareVerwaltungView extends Application {
 
     private void ladeAlleWaren() {
         List<Ware> alleWaren = warenService.getAlleWaren();
-        warenDaten.setAll(alleWaren);
+        masterDaten.setAll(alleWaren);
+    }
+
+    private void filtereTabelle(String filterText) {
+        if (filterText == null || filterText.isEmpty()) {
+            gefilterteWaren.setPredicate(w -> true);
+        } else {
+            String lower = filterText.toLowerCase();
+            gefilterteWaren.setPredicate(w ->
+                    w.getArtikelnummer().toLowerCase().contains(lower) ||
+                            w.getName().toLowerCase().contains(lower) ||
+                            w.getBeschreibung().toLowerCase().contains(lower)
+            );
+        }
     }
 
     private void konfiguriereTabelle() {
         TableColumn<Ware, String> colArtikelnummer = new TableColumn<>("Artikelnummer");
-        colArtikelnummer.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getArtikelnummer()));
+        colArtikelnummer.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getArtikelnummer()));
 
         TableColumn<Ware, String> colName = new TableColumn<>("Name");
-        colName.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getName()));
+        colName.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getName()));
 
         TableColumn<Ware, String> colBeschreibung = new TableColumn<>("Beschreibung");
-        colBeschreibung.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getBeschreibung()));
+        colBeschreibung.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getBeschreibung()));
 
         TableColumn<Ware, Integer> colMenge = new TableColumn<>("Menge");
-        colMenge.setCellValueFactory(data -> new javafx.beans.property.SimpleIntegerProperty(data.getValue().getMenge()).asObject());
+        colMenge.setCellValueFactory(data -> new SimpleIntegerProperty(data.getValue().getMenge()).asObject());
 
         TableColumn<Ware, String> colEinheit = new TableColumn<>("Einheit");
-        colEinheit.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getEinheit()));
+        colEinheit.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getEinheit()));
 
         TableColumn<Ware, Double> colPreis = new TableColumn<>("Preis");
-        colPreis.setCellValueFactory(data -> new javafx.beans.property.SimpleDoubleProperty(data.getValue().getPreis()).asObject());
+        colPreis.setCellValueFactory(data -> new SimpleDoubleProperty(data.getValue().getPreis()).asObject());
 
         tableView.getColumns().addAll(colArtikelnummer, colName, colBeschreibung, colMenge, colEinheit, colPreis);
     }
 
+    private void csvImportieren(Stage stage) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("CSV-Datei auswählen");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV-Dateien", "*.csv"));
+
+        File file = fileChooser.showOpenDialog(stage);
+        if (file != null) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String zeile;
+                List<Ware> importierteWaren = new ArrayList<>();
+                boolean ersteZeile = true;
+
+                while ((zeile = reader.readLine()) != null) {
+                    if (ersteZeile) {
+                        ersteZeile = false; // Header überspringen
+                        continue;
+                    }
+
+                    String[] teile = zeile.split(",");
+                    if (teile.length < 6) continue;
+
+                    Ware ware = new Ware(
+                            teile[0].trim(),
+                            teile[1].trim(),
+                            teile[2].trim(),
+                            Integer.parseInt(teile[3].trim()),
+                            teile[4].trim(),
+                            Double.parseDouble(teile[5].trim())
+                    );
+                    importierteWaren.add(ware);
+                }
+
+                for (Ware w : importierteWaren) {
+                    warenService.wareHinzufuegen(w);
+                }
+
+                ladeAlleWaren();
+
+            } catch (Exception ex) {
+                zeigeWarnung("Fehler beim Import: " + ex.getMessage());
+            }
+        }
+    }
+
     private void zeigeWarnung(String text) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, text);
-        alert.setHeaderText(null);
-        alert.showAndWait();
+        new Alert(Alert.AlertType.WARNING, text).showAndWait();
     }
 
     public static void main(String[] args) {

@@ -11,6 +11,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import org.example.model.Ware;
@@ -38,6 +39,7 @@ public class WareVerwaltungView extends Application {
     private final Button btnLoeschen = new Button("Löschen");
     private final Button btnImport = new Button("Importieren");
     private final Button btnMindestbestand = new Button("Mindestbestand-Warnung");
+    private final Button btnUebersicht = new Button("Übersicht");
 
     @Override
     public void start(Stage primaryStage) {
@@ -67,7 +69,7 @@ public class WareVerwaltungView extends Application {
 
         // Button-Leiste
         HBox buttonLeiste = new HBox(10, btnHinzufuegen, btnBearbeiten, btnLoeschen,
-                new Separator(), btnMindestbestand, btnImport);
+                new Separator(), btnUebersicht, btnMindestbestand, btnImport);
         buttonLeiste.setPadding(new Insets(10));
         buttonLeiste.setAlignment(Pos.CENTER);
         root.setBottom(buttonLeiste);
@@ -136,6 +138,7 @@ public class WareVerwaltungView extends Application {
             }
         });
 
+        btnUebersicht.setOnAction(e -> zeigeWarenUebersicht());
         btnMindestbestand.setOnAction(e -> zeigeMindestbestandWarnung());
         btnImport.setOnAction(e -> csvImportieren(primaryStage));
     }
@@ -247,6 +250,260 @@ public class WareVerwaltungView extends Application {
         tableView.getColumns().addAll(colArtikelnummer, colBezeichnung, colKategorie,
                 colBestand, colMindestbestand, colEinheit,
                 colVerkaufspreis, colLieferant, colLagerort);
+    }
+
+    private void zeigeWarenUebersicht() {
+        try {
+            List<Ware> alleWaren = wareRepository.findAll();
+            List<Ware> unterMindestbestand = wareRepository.findUnterMindestbestand();
+
+            // Statistiken berechnen
+            WareStatistik stats = berechneStatistiken(alleWaren);
+
+            // Neues Fenster für Übersicht
+            Stage uebersichtStage = new Stage();
+            uebersichtStage.setTitle("Waren-Übersicht - Dashboard");
+            uebersichtStage.initModality(Modality.NONE);
+
+            ScrollPane scrollPane = new ScrollPane();
+            VBox mainContent = new VBox(15);
+            mainContent.setPadding(new Insets(20));
+            mainContent.setStyle("-fx-background-color: #f8f9fa;");
+
+            // Titel
+            Label titel = new Label("📊 Warenverwaltung - Dashboard");
+            titel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+            // Zusammenfassung-Karten
+            HBox zusammenfassungBox = new HBox(15);
+            zusammenfassungBox.getChildren().addAll(
+                    createInfoCard("📦 Gesamt Waren", String.valueOf(stats.gesamtAnzahl), "#3498db"),
+                    createInfoCard("⚠️ Unter Mindestbestand", String.valueOf(stats.unterMindestbestand), "#e74c3c"),
+                    createInfoCard("💰 Lagerwert", String.format("%.2f €", stats.gesamtLagerwert), "#27ae60"),
+                    createInfoCard("🏢 Kategorien", String.valueOf(stats.anzahlKategorien), "#9b59b6")
+            );
+
+            // Detailstatistiken
+            VBox detailsBox = new VBox(10);
+
+            // Kategorien-Übersicht
+            VBox kategorienBox = createSectionBox("📋 Kategorien-Übersicht", stats.kategorieDetails);
+
+            // Lagerorte-Übersicht
+            VBox lagerorteBox = createSectionBox("📍 Lagerorte-Übersicht", stats.lagerortDetails);
+
+            // Top 10 wertvollste Waren
+            VBox topWarenBox = createTopWarenBox("💎 Top 10 wertvollste Waren", stats.topWertvolleWaren);
+
+            // Kritische Bestände (falls vorhanden)
+            if (!unterMindestbestand.isEmpty()) {
+                VBox kritischeBestaendeBox = createKritischeBestaendeBox("🚨 Kritische Bestände", unterMindestbestand);
+                detailsBox.getChildren().add(kritischeBestaendeBox);
+            }
+
+            // Lieferanten-Übersicht
+            VBox lieferantenBox = createSectionBox("🚚 Lieferanten-Übersicht", stats.lieferantDetails);
+
+            detailsBox.getChildren().addAll(kategorienBox, lagerorteBox, topWarenBox, lieferantenBox);
+
+            // Alles zusammenfügen
+            mainContent.getChildren().addAll(titel, zusammenfassungBox, detailsBox);
+
+            scrollPane.setContent(mainContent);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setStyle("-fx-background-color: #f8f9fa;");
+
+            Scene scene = new Scene(scrollPane, 900, 700);
+            uebersichtStage.setScene(scene);
+            uebersichtStage.show();
+
+        } catch (Exception e) {
+            zeigeWarnung("Fehler beim Erstellen der Übersicht: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private VBox createInfoCard(String titel, String wert, String farbe) {
+        VBox card = new VBox(5);
+        card.setPadding(new Insets(15));
+        card.setStyle(String.format("-fx-background-color: %s; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);", farbe));
+        card.setPrefWidth(200);
+
+        Label titelLabel = new Label(titel);
+        titelLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: white; -fx-font-weight: bold;");
+
+        Label wertLabel = new Label(wert);
+        wertLabel.setStyle("-fx-font-size: 24px; -fx-text-fill: white; -fx-font-weight: bold;");
+
+        card.getChildren().addAll(titelLabel, wertLabel);
+        return card;
+    }
+
+    private VBox createSectionBox(String titel, java.util.Map<String, Integer> daten) {
+        VBox box = new VBox(10);
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+        box.setPadding(new Insets(15));
+
+        Label titelLabel = new Label(titel);
+        titelLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+        VBox inhalt = new VBox(5);
+
+        for (java.util.Map.Entry<String, Integer> entry : daten.entrySet()) {
+            HBox zeile = new HBox();
+            zeile.setAlignment(Pos.CENTER_LEFT);
+
+            Label name = new Label(entry.getKey());
+            name.setStyle("-fx-font-size: 12px;");
+            name.setPrefWidth(150);
+
+            Label anzahl = new Label(entry.getValue() + " Artikel");
+            anzahl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #3498db;");
+
+            // Progress Bar für visuelle Darstellung
+            ProgressBar progress = new ProgressBar();
+            progress.setPrefWidth(100);
+            progress.setProgress((double) entry.getValue() / daten.values().stream().mapToInt(Integer::intValue).max().orElse(1));
+            progress.setStyle("-fx-accent: #3498db;");
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            zeile.getChildren().addAll(name, spacer, anzahl, progress);
+            inhalt.getChildren().add(zeile);
+        }
+
+        box.getChildren().addAll(titelLabel, inhalt);
+        return box;
+    }
+
+    private VBox createTopWarenBox(String titel, List<Ware> topWaren) {
+        VBox box = new VBox(10);
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+        box.setPadding(new Insets(15));
+
+        Label titelLabel = new Label(titel);
+        titelLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+        VBox inhalt = new VBox(5);
+
+        for (int i = 0; i < Math.min(10, topWaren.size()); i++) {
+            Ware ware = topWaren.get(i);
+            HBox zeile = new HBox(10);
+            zeile.setAlignment(Pos.CENTER_LEFT);
+
+            Label rang = new Label("#" + (i + 1));
+            rang.setStyle("-fx-font-weight: bold; -fx-text-fill: #f39c12;");
+            rang.setPrefWidth(30);
+
+            Label name = new Label(ware.getBezeichnung());
+            name.setStyle("-fx-font-size: 12px;");
+            name.setPrefWidth(200);
+
+            Label artikelnr = new Label("(" + ware.getArtikelnummer() + ")");
+            artikelnr.setStyle("-fx-font-size: 10px; -fx-text-fill: #7f8c8d;");
+            artikelnr.setPrefWidth(80);
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            Label wert = new Label(String.format("%.2f €", ware.lagerwert()));
+            wert.setStyle("-fx-font-weight: bold; -fx-text-fill: #27ae60;");
+
+            zeile.getChildren().addAll(rang, name, artikelnr, spacer, wert);
+            inhalt.getChildren().add(zeile);
+        }
+
+        box.getChildren().addAll(titelLabel, inhalt);
+        return box;
+    }
+
+    private VBox createKritischeBestaendeBox(String titel, List<Ware> kritischeWaren) {
+        VBox box = new VBox(10);
+        box.setStyle("-fx-background-color: #fff5f5; -fx-border-color: #e74c3c; -fx-border-width: 2; -fx-background-radius: 8; -fx-border-radius: 8;");
+        box.setPadding(new Insets(15));
+
+        Label titelLabel = new Label(titel);
+        titelLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #e74c3c;");
+
+        VBox inhalt = new VBox(5);
+
+        for (Ware ware : kritischeWaren) {
+            HBox zeile = new HBox(10);
+            zeile.setAlignment(Pos.CENTER_LEFT);
+
+            Label name = new Label(ware.getBezeichnung());
+            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
+            name.setPrefWidth(180);
+
+            Label bestand = new Label(ware.getAktuellerBestand() + " / " + ware.getMindestbestand());
+            bestand.setStyle("-fx-font-size: 12px; -fx-text-fill: #e74c3c;");
+            bestand.setPrefWidth(60);
+
+            int fehlt = ware.getMindestbestand() - ware.getAktuellerBestand();
+            Label fehltLabel = new Label("Fehlen: " + fehlt);
+            fehltLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #c0392b;");
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            zeile.getChildren().addAll(name, bestand, spacer, fehltLabel);
+            inhalt.getChildren().add(zeile);
+        }
+
+        box.getChildren().addAll(titelLabel, inhalt);
+        return box;
+    }
+
+    private WareStatistik berechneStatistiken(List<Ware> alleWaren) {
+        WareStatistik stats = new WareStatistik();
+
+        stats.gesamtAnzahl = alleWaren.size();
+        stats.unterMindestbestand = (int) alleWaren.stream().filter(Ware::istUnterMindestbestand).count();
+        stats.gesamtLagerwert = alleWaren.stream()
+                .filter(w -> w.getVerkaufspreis() != null)
+                .mapToDouble(w -> w.lagerwert().doubleValue())
+                .sum();
+
+        // Kategorien-Statistik
+        stats.kategorieDetails = new java.util.LinkedHashMap<>();
+        alleWaren.stream()
+                .filter(w -> w.getKategorie() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        w -> w.getKategorie().getKategorieName(),
+                        java.util.stream.Collectors.counting()
+                ))
+                .forEach((k, v) -> stats.kategorieDetails.put(k, v.intValue()));
+
+        stats.anzahlKategorien = stats.kategorieDetails.size();
+
+        // Lagerorte-Statistik
+        stats.lagerortDetails = new java.util.LinkedHashMap<>();
+        alleWaren.stream()
+                .filter(w -> w.getLagerort() != null && !w.getLagerort().isEmpty())
+                .collect(java.util.stream.Collectors.groupingBy(
+                        Ware::getLagerort,
+                        java.util.stream.Collectors.counting()
+                ))
+                .forEach((k, v) -> stats.lagerortDetails.put(k, v.intValue()));
+
+        // Lieferanten-Statistik
+        stats.lieferantDetails = new java.util.LinkedHashMap<>();
+        alleWaren.stream()
+                .filter(w -> w.getLieferantName() != null && !w.getLieferantName().isEmpty())
+                .collect(java.util.stream.Collectors.groupingBy(
+                        Ware::getLieferantName,
+                        java.util.stream.Collectors.counting()
+                ))
+                .forEach((k, v) -> stats.lieferantDetails.put(k, v.intValue()));
+
+        // Top wertvolle Waren
+        stats.topWertvolleWaren = alleWaren.stream()
+                .filter(w -> w.getVerkaufspreis() != null && w.getAktuellerBestand() > 0)
+                .sorted((w1, w2) -> w2.lagerwert().compareTo(w1.lagerwert()))
+                .collect(java.util.stream.Collectors.toList());
+
+        return stats;
     }
 
     private void zeigeMindestbestandWarnung() {
@@ -394,6 +651,18 @@ public class WareVerwaltungView extends Application {
         alert.setHeaderText(null);
         alert.setContentText(text);
         alert.showAndWait();
+    }
+
+    // Hilfsklasse für Statistiken
+    private static class WareStatistik {
+        int gesamtAnzahl;
+        int unterMindestbestand;
+        double gesamtLagerwert;
+        int anzahlKategorien;
+        java.util.Map<String, Integer> kategorieDetails;
+        java.util.Map<String, Integer> lagerortDetails;
+        java.util.Map<String, Integer> lieferantDetails;
+        List<Ware> topWertvolleWaren;
     }
 
     public static void main(String[] args) {

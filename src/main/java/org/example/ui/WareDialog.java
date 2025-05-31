@@ -285,4 +285,12 @@ public class WareDialog {
         alert.setContentText(message);
         alert.showAndWait();
     }
+
+    static void zeigeMindestbestandWarnung() {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Mindestbestand Warnung");
+        alert.setHeaderText(null);
+        alert.setContentText("Der Mindestbestand ist unter dem aktuellen Bestand. Bitte überprüfen Sie die Bestände.");
+        alert.showAndWait();
+    }
 }

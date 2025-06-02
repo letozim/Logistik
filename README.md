@@ -256,8 +256,7 @@ Das komplette Datenbank-Backup ist bereits im Repository enthalten:
 ```
 database/
 ├── full-backup.sql     # ✅ Vollständiges DB-Backup (Schema + Daten)
-├── sample-data.sql     # Zusätzliche Beispieldaten (optional)
-└── migrations/         # Datenbankmigrationen (geplant)
+
 ```
 
 **📥 Backup direkt verwenden:**

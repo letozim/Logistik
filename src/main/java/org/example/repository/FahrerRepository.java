@@ -90,7 +90,7 @@ public class FahrerRepository {
             JOIN person_rolle pr ON p.person_id = pr.person_id
             LEFT JOIN fahrer_details fd ON p.person_id = fd.person_id
             WHERE pr.rolle = 'Fahrer' AND pr.aktiv = TRUE AND p.aktiv = TRUE 
-            AND fd.verfuegbarkeit = 'Verfügbar'
+            AND fd.verfuegbarkeit = 'Verfuegbar'
             """;
 
         try (Connection conn = getConnection();
